@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced NFC-QR Mapper</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --black-base: #171717;
+            --black-surface: #1c1c1c;
+            --black-elevated: #242424;
+            --accent: #7c7fff;
+            --accent-hover: #6e6ee5;
+            --text-primary: rgba(255, 255, 255, 0.87);
+            --text-secondary: rgba(255, 255, 255, 0.60);
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+            --space-xs: 8px;
+            --space-sm: 12px;
+            --space: 16px;
+            --radius: 6px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--black-base);
+            color: var(--text-primary);
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+            padding: var(--space-xs);
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        #nfcButton {
+            width: 100%;
+            height: 48px;
+            background: var(--accent);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--radius);
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: var(--space-xs);
+            cursor: pointer;
+        }
+
+        .status-container {
+            background: var(--black-surface);
+            border-radius: var(--radius);
+            padding: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        .status {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+
+        .serial {
+            font-family: monospace;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .scanner-container {
+            background: var(--black-surface);
+            border-radius: var(--radius);
+            padding: var(--space-xs);
+            margin-bottom: var(--space-xs);
+            overflow: hidden;
+        }
+
+        .camera-controls {
+            background: var(--black-surface);
+            border-radius: var(--radius);
+            padding: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        .camera-controls select,
+        .camera-controls input[type="range"] {
+            width: 100%;
+            margin: var(--space-xs) 0;
+            background: var(--black-elevated);
+            border: none;
+            color: var(--text-primary);
+            padding: var(--space-xs);
+            border-radius: var(--radius);
+        }
+
+        .camera-controls label {
+            display: block;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+        }
+
+        #reader {
+            width: 100%;
+            background: var(--black-surface) !important;
+        }
+
+        #reader select,
+        #reader img[alt="Info icon"] {
+            display: none !important;
+        }
+
+        .controls {
+            display: flex;
+            gap: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        .controls button {
+            flex: 1;
+            height: 40px;
+            background: var(--black-elevated);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--radius);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .table-container {
+            background: var(--black-surface);
+            border-radius: var(--radius);
+            padding: var(--space-xs);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+            table-layout: fixed;
+        }
+
+        th:nth-child(1),
+        td:nth-child(1) {
+            width: 20%;
+        }
+
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 40%;
+        }
+
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 40%;
+        }
+
+        th {
+            text-align: left;
+            padding: var(--space-xs) var(--space-sm);
+            color: var(--text-secondary);
+            font-weight: normal;
+            border-bottom: 1px solid var(--black-elevated);
+        }
+
+        td {
+            padding: var(--space-xs) var(--space-sm);
+            border-bottom: 1px solid var(--black-elevated);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        td:first-child {
+            text-align: center;
+        }
+
+        td button {
+            width: 24px;
+            height: 24px;
+            background: var(--error);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .success {
+            color: var(--success);
+        }
+
+        .warning {
+            color: var(--warning);
+        }
+
+        .error {
+            color: var(--error);
+        }
+
+        #toggleFlash {
+            background: var(--accent);
+            margin-top: var(--space-xs);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button id="nfcButton">Start NFC Scan</button>
+
+        <div class="status-container">
+            <div id="nfcStatus" class="status">Ready to scan NFC tag...</div>
+            <div id="nfcSerial" class="serial"></div>
+        </div>
+
+        <div class="camera-controls">
+            <label for="cameraSelect">Select Camera:</label>
+            <select id="cameraSelect"></select>
+
+            <label for="brightnessRange">Brightness: <span id="brightnessValue">100%</span></label>
+            <input type="range" id="brightnessRange" min="0" max="200" value="100">
+
+            <label for="contrastRange">Contrast: <span id="contrastValue">100%</span></label>
+            <input type="range" id="contrastRange" min="0" max="200" value="100">
+
+            <button id="toggleFlash" style="display: none;">Toggle Flashlight</button>
+        </div>
+
+        <div class="scanner-container">
+            <div id="reader"></div>
+            <div id="qrStatus" class="status"></div>
+        </div>
+
+        <div class="controls">
+            <button id="exportButton">Export CSV</button>
+            <button id="clearButton">Clear All</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Delete</th>
+                        <th>NFC ID</th>
+                        <th>QR Code</th>
+                    </tr>
+                </thead>
+                <tbody id="mappingTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        class NFCQRMapper {
+            constructor() {
+                this.mappings = new Map();
+                this.timestamps = new Map();
+                this.currentNFCSerial = null;
+                this.html5QrCode = null;
+                this.isFlashOn = false;
+
+                this.initializeCameras();
+                this.setupEventListeners();
+                this.initializeSettings();
+                this.loadFromLocalStorage();
+                this.renderTable();
+            }
+
+            async initializeCameras() {
+                try {
+                    const cameras = await Html5Qrcode.getCameras();
+                    const select = document.getElementById('cameraSelect');
+                    select.innerHTML = '';
+                    cameras.forEach(camera => {
+                        const option = document.createElement('option');
+                        option.value = camera.id;
+                        option.text = camera.label;
+                        select.appendChild(option);
+                    });
+
+                    // Try to select back camera by default
+                    const backCamera = cameras.find(camera =>
+                        camera.label.toLowerCase().includes('back') ||
+                        camera.label.toLowerCase().includes('rear'));
+                    if (backCamera) {
+                        select.value = backCamera.id;
+                    }
+
+                    this.setupQRScanner();
+                } catch (err) {
+                    console.error('Error getting cameras', err);
+                }
+            }
+
+            setupEventListeners() {
+                document.getElementById('nfcButton').addEventListener('click', () => this.startNFCScan());
+                document.getElementById('exportButton').addEventListener('click', () => this.exportCSV());
+                document.getElementById('clearButton').addEventListener('click', () => this.clearAll());
+                document.getElementById('toggleFlash').addEventListener('click', () => this.toggleFlash());
+                document.getElementById('cameraSelect').addEventListener('change', () => this.restartScanner());
+            }
+
+            initializeSettings() {
+                const brightnessRange = document.getElementById('brightnessRange');
+                const contrastRange = document.getElementById('contrastRange');
+                const brightnessValue = document.getElementById('brightnessValue');
+                const contrastValue = document.getElementById('contrastValue');
+
+                brightnessRange.addEventListener('input', (e) => {
+                    brightnessValue.textContent = `${e.target.value}%`;
+                    this.updateVideoSettings();
+                });
+
+                contrastRange.addEventListener('input', (e) => {
+                    contrastValue.textContent = `${e.target.value}%`;
+                    this.updateVideoSettings();
+                });
+            }
+
+            updateVideoSettings() {
+                const video = document.querySelector('#reader video');
+                if (video) {
+                    const brightness = document.getElementById('brightnessRange').value;
+                    const contrast = document.getElementById('contrastRange').value;
+                    video.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                }
+            }
+
+            async toggleFlash() {
+                if (this.html5QrCode) {
+                    try {
+                        if (this.isFlashOn) {
+                            await this.html5QrCode.turnOffFlash();
+                        } else {
+                            await this.html5QrCode.turnOnFlash();
+                        }
+                        this.isFlashOn = !this.isFlashOn;
+                        document.getElementById('toggleFlash').textContent =
+                            this.isFlashOn ? 'Turn Off Flash' : 'Turn On Flash';
+                    } catch (err) {
+                        console.error('Error toggling flash:', err);
+                    }
+                }
+            }
+
+            setupQRScanner() {
+                const selectedCamera = document.getElementById('cameraSelect').value;
+                this.html5QrCode = new Html5Qrcode("reader");
+
+                const config = {
+                    fps: 15,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    experimentalFeatures: {
+                        useBarCodeDetectorIfSupported: true
+                    },
+                    formatsToSupport: [
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.AZTEC,
+                        Html5QrcodeSupportedFormats.DATA_MATRIX
+                    ],
+                    videoConstraints: {
+                        deviceId: selectedCamera,
+                        width: { min: 640, ideal: 1920, max: 1920 },
+                        height: { min: 480, ideal: 1080, max: 1080 },
+                        facingMode: "environment",
+                        focusMode: "continuous"
+                    }
+                };
+
+                this.html5QrCode.start(
+                    selectedCamera,
+                    config,
+                    this.handleQRCode.bind(this),
+                    (error) => console.warn("QR Code scan error:", error)
+                ).then(() => {
+                    document.getElementById('toggleFlash').style.display = 'block';
+                    this.updateVideoSettings();
+                }).catch(err => {
+                    console.error("QR Scanner setup failed:", err);
+                    document.getElementById('qrStatus').textContent = "Camera initialization failed";
+                    document.getElementById('qrStatus').className = 'status error';
+                });
+            }
+
+            async restartScanner() {
+                if (this.html5QrCode) {
+                    await this.html5QrCode.stop();
+                    this.setupQRScanner();
+                }
+            }
+
+            async startNFCScan() {
+                try {
+                    const ndef = new NDEFReader();
+                    await ndef.scan();
+                    this.updateNFCStatus('Scanning for NFC tag...', 'warning');
+
+                    ndef.addEventListener("reading", ({ serialNumber }) => {
+                        if (this.mappings.has(serialNumber)) {
+                            this.updateNFCStatus('NFC tag already mapped!', 'error', serialNumber);
+                            if (navigator.vibrate) navigator.vibrate([100, 100, 100, 100]);
+                            return;
+                        }
+
+                        this.currentNFCSerial = serialNumber;
+                        this.updateNFCStatus('NFC Tag Detected', 'success', serialNumber);
+                        if (navigator.vibrate) navigator.vibrate(200);
+                    });
+                } catch (error) {
+                    this.updateNFCStatus('NFC scan failed: ' + error, 'error');
+                }
+            }
+
+            updateNFCStatus(message, type, serial = '') {
+                const status = document.getElementById('nfcStatus');
+                const serialEl = document.getElementById('nfcSerial');
+                status.textContent = message;
+                status.className = `status ${type}`;
+                serialEl.textContent = serial.replace(/:/g, '');
+            }
+
+            handleQRCode(qrCode) {
+                if (!this.currentNFCSerial) return;
+
+                for (const [_, existingQR] of this.mappings) {
+                    if (existingQR === qrCode) {
+                        document.getElementById('qrStatus').textContent = 'QR code already mapped!';
+                        document.getElementById('qrStatus').className = 'status error';
+                        if (navigator.vibrate) navigator.vibrate([100, 100, 100, 100]);
+                        return;
+                    }
+                }
+
+                this.mappings.set(this.currentNFCSerial, qrCode);
+                this.timestamps.set(this.currentNFCSerial, Date.now());
+                document.getElementById('qrStatus').textContent = 'Paired Successfully';
+                document.getElementById('qrStatus').className = 'status success';
+                this.saveToLocalStorage();
+                this.renderTable();
+
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+                this.currentNFCSerial = null;
+                this.updateNFCStatus('Ready for next scan', 'warning');
+                setTimeout(() => this.startNFCScan(), 1000);
+            }
+
+            renderTable() {
+                const tbody = document.getElementById('mappingTable');
+                tbody.innerHTML = '';
+
+                const entries = Array.from(this.mappings.entries())
+                    .map(([nfc, qr]) => ({
+                        nfc: nfc.replace(/:/g, ''),
+                        qr,
+                        timestamp: this.timestamps.get(nfc) || 0
+                    }))
+                    .sort((a, b) => b.timestamp - a.timestamp);
+
+                for (const entry of entries) {
+                    const row = tbody.insertRow();
+
+                    const deleteCell = row.insertCell(0);
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '×';
+                    deleteButton.onclick = () => this.deleteMapping(entry.nfc);
+                    deleteCell.appendChild(deleteButton);
+
+                    const nfcCell = row.insertCell(1);
+                    nfcCell.textContent = entry.nfc;
+                    nfcCell.title = entry.nfc;
+
+                    const qrCell = row.insertCell(2);
+                    qrCell.textContent = entry.qr;
+                    qrCell.title = entry.qr;
+                }
+            }
+
+            deleteMapping(nfcSerial) {
+                const originalNfcId = Array.from(this.mappings.keys())
+                    .find(key => key.replace(/:/g, '') === nfcSerial);
+
+                if (originalNfcId) {
+                    this.mappings.delete(originalNfcId);
+                    this.timestamps.delete(originalNfcId);
+                    this.saveToLocalStorage();
+                    this.renderTable();
+                }
+            }
+
+            exportCSV() {
+                const csv = ['NFC Serial,QR Code'];
+                for (const [nfc, qr] of this.mappings) {
+                    csv.push(`${nfc.replace(/:/g, '')},${qr}`);
+                }
+
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'nfc-qr-mappings.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            clearAll() {
+                if (confirm('Clear all mappings?')) {
+                    this.mappings.clear();
+                    this.timestamps.clear();
+                    this.saveToLocalStorage();
+                    this.renderTable();
+                }
+            }
+
+            saveToLocalStorage() {
+                const data = {
+                    mappings: Array.from(this.mappings.entries()),
+                    timestamps: Array.from(this.timestamps.entries())
+                };
+                localStorage.setItem('nfcQrMappings', JSON.stringify(data));
+            }
+
+            loadFromLocalStorage() {
+                const stored = localStorage.getItem('nfcQrMappings');
+                if (stored) {
+                    try {
+                        const data = JSON.parse(stored);
+                        this.mappings = new Map(data.mappings);
+                        this.timestamps = new Map(data.timestamps);
+                    } catch (error) {
+                        console.error('Error loading stored data:', error);
+                        this.mappings = new Map();
+                        this.timestamps = new Map();
+                    }
+                }
+            }
+        }
+
+        // Initialize the application
+        window.addEventListener('load', () => {
+            const mapper = new NFCQRMapper();
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (mapper && mapper.html5QrCode) {
+                mapper.html5QrCode.stop();
+            }
+        });
+
+    </script>
+</body>
+
+</html>
